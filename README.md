@@ -16,7 +16,7 @@ Live site: https://anon-astra.github.io/twt-sentiment/
 - Log in, crawl follower graphs, or read direct messages
 - Treat the score as a poll, a safety rating, or investment advice
 
-The checked-in sample was collected on 30 Sep 2026 from public keyword search. It is directional, not representative.
+The checked-in sample is public English posts from 1 Jul 2025 through 30 Sep 2026. It is directional, not representative. Light mode is a toggle in the header and is remembered in this browser.
 
 ```bash
 npm install

@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ExternalLink, Plane, RefreshCw } from "lucide-react";
+import { ExternalLink, Moon, Plane, RefreshCw, Sun } from "lucide-react";
 import { OEMS, guessOems, oemById, type OemId } from "@/data/oems";
 import { SEED_POSTS } from "@/data/corpus";
 import { COLLECTED_AT, PUBLIC_QUERIES, READER_RULES } from "@/lib/ethics";
@@ -28,6 +28,7 @@ import { fetchPublicPost, refreshPublicCounts } from "@/lib/public-read";
 
 const PIN_KEY = "airframe-brief-pins";
 const HIDE_KEY = "airframe-brief-hidden";
+const THEME_KEY = "airframe-brief-theme";
 
 function formatUtc(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -167,18 +168,28 @@ export function BriefApp() {
   const [busy, setBusy] = useState<"read" | "refresh" | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [span, setSpan] = useState<"all" | "2025" | "2026">("all");
 
   useEffect(() => {
     try {
       const storedPins = localStorage.getItem(PIN_KEY);
       const storedHidden = localStorage.getItem(HIDE_KEY);
+      const storedTheme = localStorage.getItem(THEME_KEY);
       if (storedPins) setPins(JSON.parse(storedPins) as BriefPost[]);
       if (storedHidden) setHidden(JSON.parse(storedHidden) as string[]);
+      if (storedTheme === "light" || storedTheme === "dark") setTheme(storedTheme);
     } catch {
       // Ignore a corrupt local brief. The public sample still renders.
     }
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "light" ? "#f4f7f3" : "#101410");
+  }, [theme]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -189,6 +200,11 @@ export function BriefApp() {
     if (!hydrated) return;
     localStorage.setItem(HIDE_KEY, JSON.stringify(hidden));
   }, [hidden, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme, hydrated]);
 
   const posts = useMemo(() => {
     const byId = new Map<string, BriefPost>();
@@ -203,11 +219,16 @@ export function BriefApp() {
       .map(scorePost);
   }, [pins, hidden, overrides]);
 
-  const board = useMemo(() => rollupAll(posts), [posts]);
-  const view = useMemo(() => forOem(posts, oem), [posts, oem]);
+  const ranged = useMemo(() => {
+    if (span === "all") return posts;
+    return posts.filter((post) => post.createdAt.startsWith(span));
+  }, [posts, span]);
+
+  const board = useMemo(() => rollupAll(ranged), [ranged]);
+  const view = useMemo(() => forOem(ranged, oem), [ranged, oem]);
   const focus = oem === "all" ? null : rollupOem(posts, oem);
   const overallNet =
-    posts.length === 0 ? 0 : Math.round(posts.reduce((sum, post) => sum + post.score, 0) / posts.length * 100);
+    ranged.length === 0 ? 0 : Math.round(ranged.reduce((sum, post) => sum + post.score, 0) / ranged.length * 100);
   const positiveShare = posts.length
     ? Math.round((view.filter((post) => post.label === "positive").length / view.length) * 100)
     : 0;
@@ -301,14 +322,24 @@ export function BriefApp() {
             What public posts say about each airframe maker
           </h1>
           <p className="mt-3 text-pretty text-muted">
-            Airbus, Boeing, and four peers. Scores come from a visible word list, not a hidden model.
-            Sample collected {collectedLabel}. Not a poll and not a safety rating.
+            Airbus, Boeing, and four peers, from 1 Jul 2025 through 30 Sep 2026. Scores come from a
+            visible word list, not a hidden model. Not a poll and not a safety rating.
           </p>
         </div>
-        <dl className="grid grid-cols-3 gap-3 sm:min-w-72">
+        <div className="flex flex-col gap-3 sm:items-end">
+          <button
+            type="button"
+            aria-pressed={theme === "light"}
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            className="inline-flex min-h-11 w-fit items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm text-fg"
+          >
+            {theme === "light" ? <Moon className="size-4" aria-hidden="true" /> : <Sun className="size-4" aria-hidden="true" />}
+            {theme === "light" ? "Dark mode" : "Light mode"}
+          </button>
+          <dl className="grid grid-cols-3 gap-3 sm:min-w-72">
           <div>
             <dt className="font-mono text-xs tracking-wide text-muted uppercase">Posts</dt>
-            <dd className="mt-1 text-2xl tabular-nums">{posts.length}</dd>
+            <dd className="mt-1 text-2xl tabular-nums">{ranged.length}</dd>
           </div>
           <div>
             <dt className="font-mono text-xs tracking-wide text-muted uppercase">OEMs</dt>
@@ -321,6 +352,7 @@ export function BriefApp() {
             </dd>
           </div>
         </dl>
+        </div>
       </header>
 
       <section className="mt-6" aria-label="How posts are read">
@@ -364,12 +396,35 @@ export function BriefApp() {
               ))}
             </ul>
             <p className="mt-3 text-pretty text-sm text-muted">
-              Original English posts, capped per maker. Hiding a card only removes it from this browser.
-              Refresh asks the public post service for new like counts on at most four posts.
+              Original English public posts from 1 Jul 2025 through {collectedLabel}. Not every post in that
+              window. Hiding a card only removes it from this browser. Refresh asks the public post
+              service for new like counts on at most four posts.
             </p>
           </div>
         </details>
       </section>
+
+      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Date range">
+        {(
+          [
+            ["all", "1 Jul 2025 – 30 Sep 2026"],
+            ["2025", "2025"],
+            ["2026", "2026"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={span === id}
+            onClick={() => setSpan(id)}
+            className={`min-h-11 rounded-full border px-4 text-sm ${
+              span === id ? "border-accent bg-accent text-bg" : "border-line bg-surface text-fg"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Airframe makers">
         <button

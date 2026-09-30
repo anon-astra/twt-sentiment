@@ -1,12 +1,14 @@
-export const COLLECTED_AT = "2026-09-30T08:20:00.000Z";
+export const COLLECTED_AT = "2026-09-30T08:40:00.000Z";
+export const WINDOW_START = "2025-07-01T00:00:00.000Z";
 
 export const PUBLIC_QUERIES = [
-  "Airbus / A320 / A350 delivery, order, delay, defect",
+  "1 Jul 2025 – 30 Sep 2026, public English posts only",
+  "Airbus / A320 / A350 / C-295 delivery, order, delay",
   "Boeing / 737 / 787 delivery, FAA, order",
-  "Embraer E2, Phenom, C-390",
-  "COMAC / C919 certification and flights",
-  "ATR 72 / ATR 42",
-  "Bombardier / Global 6000",
+  "Embraer E2, C-390, Phenom",
+  "COMAC / C919 certification and deliveries",
+  "ATR 72 / ATR 42 orders and flights",
+  "Bombardier Global and Challenger",
 ] as const;
 
 export const READER_RULES = {

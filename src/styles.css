@@ -38,6 +38,22 @@
   }
 }
 
+html {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f4f7f3;
+  --color-surface: #ffffff;
+  --color-fg: #172019;
+  --color-muted: #546358;
+  --color-line: #d5e0d6;
+  --color-accent: #8a5a12;
+  --color-positive: #1d7a38;
+  --color-negative: #b42318;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
