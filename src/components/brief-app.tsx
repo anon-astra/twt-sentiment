@@ -12,6 +12,7 @@ import { ExternalLink, Moon, Plane, RefreshCw, Sun } from "lucide-react";
 import { OEMS, guessOems, oemById, type OemId } from "@/data/oems";
 import { SEED_POSTS } from "@/data/corpus";
 import { COLLECTED_AT, PUBLIC_QUERIES, READER_RULES } from "@/lib/ethics";
+import { connectNote, type NoteLink } from "@/lib/history";
 import {
   forOem,
   rollupAll,
@@ -24,11 +25,13 @@ import {
   type ScoredPost,
 } from "@/lib/aggregate";
 import type { Pole } from "@/lib/sentiment";
+import { THEMES } from "@/lib/sentiment";
 import { fetchPublicPost, refreshPublicCounts } from "@/lib/public-read";
 
 const PIN_KEY = "airframe-brief-pins";
 const HIDE_KEY = "airframe-brief-hidden";
 const THEME_KEY = "airframe-brief-theme";
+const PAGE = 12;
 
 function formatUtc(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -156,6 +159,29 @@ function ThemeChart({ posts }: { posts: ScoredPost[] }) {
   );
 }
 
+function Marked({ text, marks }: { text: string; marks: string[] }) {
+  const unique = [...new Set(marks.map((mark) => mark.trim()).filter((mark) => mark.length > 1))];
+  if (unique.length === 0) return <>{text}</>;
+  const pattern = new RegExp(
+    `(${unique.map((mark) => mark.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+    "ig",
+  );
+  const parts = text.split(pattern);
+  return (
+    <>
+      {parts.map((part, index) =>
+        unique.some((mark) => mark.toLowerCase() === part.toLowerCase()) ? (
+          <mark key={`${part}-${index}`} className="rounded bg-accent/25 px-0.5 text-fg">
+            {part}
+          </mark>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 export function BriefApp() {
   const [oem, setOem] = useState<OemId | "all">("all");
   const [pins, setPins] = useState<BriefPost[]>([]);
@@ -170,6 +196,9 @@ export function BriefApp() {
   const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [span, setSpan] = useState<"all" | "2025" | "2026">("all");
+  const [shown, setShown] = useState(PAGE);
+  const [note, setNote] = useState("");
+  const [noteLink, setNoteLink] = useState<NoteLink | null>(null);
 
   useEffect(() => {
     try {
@@ -226,6 +255,10 @@ export function BriefApp() {
 
   const board = useMemo(() => rollupAll(ranged), [ranged]);
   const view = useMemo(() => forOem(ranged, oem), [ranged, oem]);
+
+  useEffect(() => {
+    setShown(PAGE);
+  }, [oem, span]);
   const focus = oem === "all" ? null : rollupOem(posts, oem);
   const overallNet =
     ranged.length === 0 ? 0 : Math.round(ranged.reduce((sum, post) => sum + post.score, 0) / ranged.length * 100);
@@ -396,9 +429,9 @@ export function BriefApp() {
               ))}
             </ul>
             <p className="mt-3 text-pretty text-sm text-muted">
-              Original English public posts from 1 Jul 2025 through {collectedLabel}. Not every post in that
-              window. Hiding a card only removes it from this browser. Refresh asks the public post
-              service for new like counts on at most four posts.
+              Original English public posts from 1 Jul 2025 through {collectedLabel}. A compiled sample of
+              several hundred posts, not every post in that window. Hiding a card only removes it from this browser.
+              Refresh asks the public post service for new like counts on at most four posts.
             </p>
           </div>
         </details>
@@ -544,6 +577,105 @@ export function BriefApp() {
         </table>
       </section>
 
+      <section className="mt-8 rounded-2xl border border-line bg-surface p-4" aria-label="Your flying experience">
+        <h2 className="text-xl text-balance">Your flying experience</h2>
+        <p className="mt-1 text-sm text-pretty text-muted">
+          Same word list as the cards. Nothing here is uploaded. Highlighted words are what tie the note to earlier public posts.
+        </p>
+        <form
+          className="mt-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNoteLink(connectNote(note, posts));
+          }}
+        >
+          <label className="sr-only" htmlFor="flight-note">
+            Flying experience
+          </label>
+          <textarea
+            id="flight-note"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            rows={5}
+            placeholder="The A320 sat for two hours, then the crew said the delay was a defect in the air-conditioning…"
+            className="w-full rounded-2xl border border-line bg-bg px-4 py-3 text-sm text-fg outline-none placeholder:text-muted focus:border-accent"
+          />
+          <button
+            type="submit"
+            disabled={note.trim().length < 12}
+            className="mt-3 min-h-11 rounded-full bg-accent px-5 text-sm font-medium text-bg disabled:opacity-50"
+          >
+            Score this note
+          </button>
+        </form>
+        {noteLink ? (
+          <div className="mt-4 border-t border-line pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full border border-line px-2.5 py-1 font-mono text-xs ${toneText(noteLink.label)}`}>
+                {noteLink.label} {noteLink.net > 0 ? `+${noteLink.net}` : noteLink.net}
+              </span>
+              {noteLink.oems.map((id) => (
+                <span key={id} className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">
+                  {oemById(id).name}
+                </span>
+              ))}
+              {noteLink.themes.map((id) => (
+                <span key={id} className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">
+                  {THEMES.find((theme) => theme.id === id)?.label ?? id}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-pretty leading-relaxed">
+              <Marked
+                text={note.trim()}
+                marks={[
+                  ...noteLink.hits.map((hit) => hit.term),
+                  ...noteLink.matches.flatMap((match) => match.sharedWords),
+                ]}
+              />
+            </p>
+            {noteLink.hits.length > 0 ? (
+              <p className="mt-2 font-mono text-xs text-muted">
+                {noteLink.hits.map((hit) => `${hit.pole === "positive" ? "+" : "−"}${hit.term}`).join("  ")}
+              </p>
+            ) : (
+              <p className="mt-2 font-mono text-xs text-muted">No lexicon hits · treated as even</p>
+            )}
+            <p className="mt-3 text-pretty text-sm text-fg">{noteLink.historyLine}</p>
+            {noteLink.matches.length > 0 ? (
+              <ul className="mt-3 space-y-2">
+                {noteLink.matches.map((match) => (
+                  <li key={match.post.id} className="rounded-xl border border-line bg-bg px-3 py-3 text-sm">
+                    <p className="text-muted">
+                      <span className="text-fg">@{match.post.handle}</span>
+                      {" · "}
+                      {formatUtc(match.post.createdAt)}
+                      {" · "}
+                      {match.post.label} {match.post.net > 0 ? `+${match.post.net}` : match.post.net}
+                    </p>
+                    <p className="mt-2 text-pretty leading-relaxed">
+                      <Marked
+                        text={match.post.text}
+                        marks={[...match.sharedHits, ...match.sharedWords]}
+                      />
+                    </p>
+                    <p className="mt-2 font-mono text-xs text-muted">
+                      {[
+                        match.sharedThemes.length ? `themes ${match.sharedThemes.join(", ")}` : "",
+                        match.sharedHits.length ? `words ${match.sharedHits.join(", ")}` : "",
+                        match.sharedWords.length ? `also ${match.sharedWords.join(", ")}` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
       <section className="mt-8" aria-label="Public posts">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -591,7 +723,7 @@ export function BriefApp() {
         ) : null}
 
         <ul className="mt-4 space-y-3">
-          {view.map((post) => {
+          {view.slice(0, shown).map((post) => {
             const open = openId === post.id;
             const names = [oemById(post.oem).name, ...post.also.map((id) => oemById(id).name)];
             return (
@@ -658,6 +790,15 @@ export function BriefApp() {
             );
           })}
         </ul>
+        {shown < view.length ? (
+          <button
+            type="button"
+            className="mt-3 min-h-11 rounded-full border border-line bg-surface px-4 text-sm"
+            onClick={() => setShown((count) => count + PAGE)}
+          >
+            Show {Math.min(PAGE, view.length - shown)} more of {view.length}
+          </button>
+        ) : null}
         {hidden.length > 0 ? (
           <button
             type="button"

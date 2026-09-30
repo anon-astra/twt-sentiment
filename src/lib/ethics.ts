@@ -2,8 +2,8 @@ export const COLLECTED_AT = "2026-09-30T08:40:00.000Z";
 export const WINDOW_START = "2025-07-01T00:00:00.000Z";
 
 export const PUBLIC_QUERIES = [
-  "1 Jul 2025 – 30 Sep 2026, public English posts only",
-  "Airbus / A320 / A350 / C-295 delivery, order, delay",
+  "1 Jul 2025 – 30 Sep 2026, original English posts, compiled sample",
+  "Airbus / A320 / A350 / A220 delivery, order, delay",
   "Boeing / 737 / 787 delivery, FAA, order",
   "Embraer E2, C-390, Phenom",
   "COMAC / C919 certification and deliveries",
